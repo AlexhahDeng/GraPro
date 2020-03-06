@@ -1,0 +1,34 @@
+### 20/03/06
+开始撸代码了！先了解一下movieLens数据集的内容~
+
+* tags.csv
+  
+    userId<br>
+    movieId<br>
+    tag：由用户决定<br>
+    timestamp：自1970年1月1日零点后到用户提交评价的时间的秒数<br>
+
+* ratings.csv
+  userId<br>
+  movieId<br>
+  rating：0.5~5.0<br>
+  timestamp<br>
+
+* movies.csv
+  movieId:193609<br>
+  title<br>
+  genres：给定的分类，一部影片可以跨越多个分类<br>
+
+* links.csv
+  movieId<br>
+  imdbId：应该是在imdb这个网站中的id<br>
+  tmdbId：themoviedb上的id<br>
+  上面这俩都可以在网站中找到<br>
+
+
+
+con：好像也没干啥，弄清楚了dataset里面都有啥。然后有了前车之鉴，这一次搭的虚环境。<br>
+todo：
+* 从csv里面读文件啦
+* 弄随机抽取用户的函数（总共610个用户）感觉有点少，要不直接作为一个区域用户集⑧
+
