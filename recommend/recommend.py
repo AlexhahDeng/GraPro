@@ -1,5 +1,7 @@
 import csv
 import os
+import numpy as np
+
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
@@ -7,6 +9,11 @@ dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\"
 # 电影数
 MAXNUM = 1000000
 
+# 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数
+listMovie = [[0 for col in range(3)] for row in range(MAXNUM)] 
+
+
+# 读取csv的内容
 def readCSV(filePath):
     # 文件头也包含在内
     try:
@@ -28,30 +35,33 @@ def readCSV(filePath):
         file.close();# 操作完成一定要关闭
 
 
-
+# 获取点击量和总评分
 def getClicksandAvgScores():
 
     filename = dataPath + "ratings.csv"
     list1 = readCSV(filename)
-    listMovie = [[0 for col in range(2)] for row in range(MAXNUM)] # 二维数组，第一列是电影点击数，第二列是电影分数
 
-    for i in range(1,len(list1)): #userId,movieId,rating,timestamp
+    for i in range(1,len(list1)-1): #userId,movieId,rating,timestamp 第一行是header，最后一行是空的
         movieNum = int(list1[i][1]) # movieid
         
         listMovie[movieNum][0] = listMovie[movieNum][0] + 1 # count clicks
         listMovie[movieNum][1] = float(list1[i][2]) + listMovie[movieNum][1] # count scores
 
     for i in range(len(listMovie)):
-        listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
-
-        print (listMovie[i][0] + "   " + listMovie[i][1])
-
-    return listMovie
+        if(listMovie[i][0] != 0):
+            listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
 
 
+# 获取评论数
 def getCommentsNum():
 
-    return 
+    filename = dataPath + "tags.csv"
+    list1 = readCSV(filename)
+
+    for i in range(1,len(list1)-1): #userId,movieId,tag,timestamp
+        movieNum = int(list1[i][1])
+
+        listMovie[movieNum][2] = listMovie[movieNum][2] + 1
 
 
 def ahp():
@@ -61,8 +71,24 @@ def ahp():
         把tags中某个电影被打tag的次数看成 “评论数”
     '''
 
+    # 创建成对矩阵
+    arr = np.array([[1,5,3],
+                    [1/5,1,1/3],
+                    [1/3,3,1]])
 
-getClicksandAvgScores()
+    row_sum = arr.sum(axis = 1) # 行求和
+
+    # 矩阵归一化
+    [rows, cols] = arr.shape
+
+    for i in range(rows):
+        for j in range(cols):
+            arr[i,j] = arr[i,j] / row_sum[i]
+
+            print(arr[i, j])
+
+
+ahp()
 
 
 
