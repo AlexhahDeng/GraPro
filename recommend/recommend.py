@@ -12,6 +12,8 @@ MAXNUM = 1000000
 # 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数
 listMovie = [[0 for col in range(3)] for row in range(MAXNUM)] 
 
+# ahp一致性检验参数，阶为3的情况
+RI = 0.58
 
 # 读取csv的内容
 def readCSV(filePath):
@@ -26,7 +28,7 @@ def readCSV(filePath):
 
         for i in range(length):
             list_result[i]=list_result[i].split(",")
-        return list_result
+        return list_result,
 
     except Exception:
         print("文件读取转换失败，请检查文件路径及文件编码是否正确")
@@ -76,16 +78,43 @@ def ahp():
                     [1/5,1,1/3],
                     [1/3,3,1]])
 
-    row_sum = arr.sum(axis = 1) # 行求和
+    col_sum = arr.sum(axis = 0) # 列求和
 
-    # 矩阵归一化
+    # 矩阵归一化    
     [rows, cols] = arr.shape
+    brr = np.zeros((rows, cols))
 
     for i in range(rows):
         for j in range(cols):
-            arr[i,j] = arr[i,j] / row_sum[i]
+            brr[i,j] = arr[i,j] / col_sum[j]
 
-            print(arr[i, j])
+    row_sum = brr.sum(axis = 0) # 行求和
+    w = [0 for i in range(3)]
+
+    # 归一化权重
+    for i in range(len(row_sum)):
+        w[i] = row_sum[i] / row_sum.sum()
+
+    # 检验一致性(特征值，特征向量)
+    evalue,fevector=np.linalg.eig(arr)
+
+    evalue_max = np.max(evalue) # 最大特征值
+
+    CI = (evalue_max - rows) / (rows - 1)
+
+    CR = CI/RI
+
+    if(CR < 0.1):
+        print("CR:" + str(CR) +"    通过一致性检验")
+    else:
+        print("未通过一致性检验，请重新设计对比矩阵")
+
+    return w # 权重array
+
+
+
+
+
 
 
 ahp()
