@@ -1,5 +1,8 @@
 import csv
 import os
+import heapq
+import json
+import pandas as pd
 import numpy as np
 
 
@@ -9,15 +12,23 @@ dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\"
 # 电影数
 MAXNUM = 1000000
 
-# 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数
-listMovie = [[0 for col in range(3)] for row in range(MAXNUM)] 
+# 热门电影数
+hotMovieNum = 100
+
+# 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数 col4：综合评分
+listMovie = [[0.0 for col in range(4)] for row in range(MAXNUM)] 
+listMovie = np.asarray(listMovie)
 
 # ahp一致性检验参数，阶为3的情况
 RI = 0.58
 
-# 读取csv的内容
+
+
 def readCSV(filePath):
-    # 文件头也包含在内
+    '''
+    func:读取csv的内容，文件头也包含在内
+    '''
+
     try:
         file=open(filePath,'r',encoding="gbk")# 读取以utf-8
         context = file.read() # 读取成str
@@ -28,7 +39,7 @@ def readCSV(filePath):
 
         for i in range(length):
             list_result[i]=list_result[i].split(",")
-        return list_result,
+        return list_result
 
     except Exception:
         print("文件读取转换失败，请检查文件路径及文件编码是否正确")
@@ -37,9 +48,22 @@ def readCSV(filePath):
         file.close();# 操作完成一定要关闭
 
 
-# 获取点击量和总评分
-def getClicksandAvgScores():
 
+
+def toCsv(filename, list1):
+    '''
+    func:把listMovie数据写入 csv（是list类型的哦，当心别传出array
+    '''
+    name = ['clickNum', 'avgScore', 'commNum', 'conpreScore']
+    test = pd.DataFrame(columns = name, data = list1)
+    test.to_csv(dataPath+filename+'.csv',encoding = 'gbk')
+
+
+
+def getClicksandAvgScores():
+    '''
+    func:获取点击量和总评分，结果计入listMovie数组
+    '''
     filename = dataPath + "ratings.csv"
     list1 = readCSV(filename)
 
@@ -53,9 +77,14 @@ def getClicksandAvgScores():
         if(listMovie[i][0] != 0):
             listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
 
+    print("获取点击量和平均评分……done")
 
-# 获取评论数
+
+
 def getCommentsNum():
+    '''
+    func: 获取评论数，结果直接计入listMovie数组
+    '''
 
     filename = dataPath + "tags.csv"
     list1 = readCSV(filename)
@@ -65,12 +94,14 @@ def getCommentsNum():
 
         listMovie[movieNum][2] = listMovie[movieNum][2] + 1
 
+    print("获取评论数……done")
+
+
 
 def ahp():
     '''
-        看过的一定会评分，但是不一定会打tag
-        把ratings中电影出现次数看成 “点击量” 评分取 “平均评分”
-        把tags中某个电影被打tag的次数看成 “评论数”
+    func:利用ahp层次分析法获取权重
+    return：numpy array
     '''
 
     # 创建成对矩阵
@@ -113,16 +144,55 @@ def ahp():
 
 
 
+def getHotMovies(ahp):
+    '''
+    func:获取电影综合评分后给出热门电影集
+    return: list
+    '''
+
+    getClicksandAvgScores()
+    getCommentsNum()
+
+
+    # 归一化每一列的数据
+    colMax = np.max(listMovie, axis = 0)
+    print("每一列的最大值：" + str(colMax))
+
+    # 获取综合评分
+    [rows, cols] = listMovie.shape # 获取电影数组的行列信息
+
+    for i in range(cols): # 外围是列，而不是传统的行，便于一次性处理好所有电影数据
+        for j in range(rows):
+            if(i == cols-1): # 若是最后一列，则开始计算综合评分
+                for k in range(cols - 1):
+                    listMovie[j][i] = listMovie[j][k]*ahp[k] + listMovie[j][i]
+
+            else: # 非最后一列，则通过除以列最大值，归一化数据
+                listMovie[j][i] = listMovie[j][i] / colMax[i]
+
+    # toCsv('movieList',listMovie.tolist())
+
+    # 获取最热门的n个电影
+    conpreScores = listMovie[:, cols - 1]
+    conpreScores = conpreScores.tolist()
+
+    hotMovieIndex = map(conpreScores.index, heapq.nlargest(hotMovieNum, conpreScores))
+
+    print("hot movie index list:   " + str(list(hotMovieIndex)))
+    return list(hotMovieIndex)
+
+    
+
+
+
+def main():
+    ahpWei = ahp()
+    getHotMovies(ahpWei)
 
 
 
 
-ahp()
-
-
-
-
-
+main()
 
 
 
