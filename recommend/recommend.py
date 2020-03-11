@@ -19,6 +19,10 @@ hotMovieNum = 100
 listMovie = [[0.0 for col in range(4)] for row in range(MAXNUM)] 
 listMovie = np.asarray(listMovie)
 
+# 用户集合
+listUser = [[0.0 for col in range(4)] for row in range(MAXNUM)]
+listUser = np.asarray(listUser)
+
 # ahp一致性检验参数，阶为3的情况
 RI = 0.58
 
@@ -46,7 +50,6 @@ def readCSV(filePath):
     
     finally:
         file.close();# 操作完成一定要关闭
-
 
 
 
@@ -153,6 +156,8 @@ def getHotMovies(ahp):
     getClicksandAvgScores()
     getCommentsNum()
 
+    # 先给我留一个原始的listMovie中的原始平均评分数据 涉及拷贝的问题--用list()函数可解决
+    AvgScore = list(listMovie[:, 1])
 
     # 归一化每一列的数据
     colMax = np.max(listMovie, axis = 0)
@@ -170,18 +175,35 @@ def getHotMovies(ahp):
             else: # 非最后一列，则通过除以列最大值，归一化数据
                 listMovie[j][i] = listMovie[j][i] / colMax[i]
 
-    # toCsv('movieList',listMovie.tolist())
+    # toCsv('movieList',listMovie.tolist()) 
 
-    # 获取最热门的n个电影
+    # 获取最热门的n个电影以及评分
     conpreScores = listMovie[:, cols - 1]
     conpreScores = conpreScores.tolist()
 
-    hotMovieIndex = map(conpreScores.index, heapq.nlargest(hotMovieNum, conpreScores))
+    hotMovieIndex = map(conpreScores.index, heapq.nlargest(hotMovieNum, conpreScores)) # 获取综合评分最高的前hotMovieNum个movie id
 
-    print("hot movie index list:   " + str(list(hotMovieIndex)))
-    return list(hotMovieIndex)
+    hotMovieIndex = list(hotMovieIndex)
+    hotMovieList = [[0.0 for col in range(2)] for row in range(hotMovieNum)]
 
-    
+    for i in range(hotMovieNum): # 获取对应movie id 的平均评分
+        hotMovieList[i][0] = hotMovieIndex[i] # 序号
+        hotMovieList[i][1] = AvgScore[hotMovieIndex[i]] # FIXME 不知道要不要把平均分数化成int，毕竟一般评分基本都是int
+
+    print("hot movie index list:   " + str(hotMovieList))
+
+    return hotMovieList # 是个list
+
+
+def userMartrix(targetUser):
+
+    # 先读文件咯
+    filename = dataPath + 'ratings.csv'
+    list1 = readCSV(filename) # userId,movieId,rating,timestamp
+
+    # 针对每个用户构造一个矩阵把？
+
+    return 
 
 
 
@@ -191,10 +213,10 @@ def main():
 
 
 
-
 main()
 
 
+# TODO还不就是要接着把用户矩阵搞出来咯！
 
 '''
 读取当前目录/父目录的办法，留着备用
