@@ -4,7 +4,7 @@ import heapq
 import json
 import pandas as pd
 import numpy as np
-
+import pandas as pd
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
@@ -30,7 +30,7 @@ RI = 0.58
 
 def readCSV(filePath):
     '''
-    func:读取csv的内容，文件头也包含在内
+    func:读取csv的内容
     '''
 
     try:
@@ -41,8 +41,11 @@ def readCSV(filePath):
         #每一行的各个元素是以【,】分割的，因此可以
         length=len(list_result)
 
-        for i in range(length):
+        for i in range(1, length): 
             list_result[i]=list_result[i].split(",")
+        
+        list_result.remove(list_result[0]) # 删除第一行
+
         return list_result
 
     except Exception:
@@ -55,7 +58,7 @@ def readCSV(filePath):
 
 def toCsv(filename, list1):
     '''
-    func:把listMovie数据写入 csv（是list类型的哦，当心别传出array
+    func:把listMovie数据写入 csv（是list类型的哦，当心别传入array
     '''
     name = ['clickNum', 'avgScore', 'commNum', 'conpreScore']
     test = pd.DataFrame(columns = name, data = list1)
@@ -65,12 +68,12 @@ def toCsv(filename, list1):
 
 def getClicksandAvgScores():
     '''
-    func:获取点击量和总评分，结果计入listMovie数组
+    func:获取点击量和平均评分，结果计入listMovie数组
     '''
     filename = dataPath + "ratings.csv"
     list1 = readCSV(filename)
 
-    for i in range(1,len(list1)-1): #userId,movieId,rating,timestamp 第一行是header，最后一行是空的
+    for i in range(len(list1)): #userId,movieId,rating,timestamp 第一行是header，最后一行是空的
         movieNum = int(list1[i][1]) # movieid
         
         listMovie[movieNum][0] = listMovie[movieNum][0] + 1 # count clicks
@@ -92,13 +95,41 @@ def getCommentsNum():
     filename = dataPath + "tags.csv"
     list1 = readCSV(filename)
 
-    for i in range(1,len(list1)-1): #userId,movieId,tag,timestamp
+    for i in range(len(list1)): #userId,movieId,tag,timestamp
         movieNum = int(list1[i][1])
 
         listMovie[movieNum][2] = listMovie[movieNum][2] + 1
 
     print("获取评论数……done")
 
+
+def getUserMovies():
+    '''
+    func：搞到每个用户的观影信息，list的index是userid，内容是一个电影+评分的二维数组
+    return：list
+    '''
+    # 读文件啦
+    filename = dataPath + 'ratings.csv'
+    listRating = readCSV(filename)
+
+    # 整理数据啦
+    arr = np.asarray(listRating)
+    col1 = [int(i[0]) for i in listRating] # 读取第一列
+    col1 = np.asarray(col1)
+    userList = []
+
+    print("获取每个用户的观影记录以及评分")
+    for i in range(np.max(col1) + 1): 
+        movieList = arr[np.where(col1 == i)]
+        movieList = movieList[:,[1,2]]
+
+        if(len(movieList) == 0):
+            continue
+        else:
+            tmp = [i, movieList.tolist()]
+            userList.append(tmp)
+
+    return userList # id, 二维数组，包含电影和评分，注意是str不是int
 
 
 def ahp():
@@ -197,12 +228,6 @@ def getHotMovies(ahp):
 
 def userMartrix(targetUser):
 
-    # 先读文件咯
-    filename = dataPath + 'ratings.csv'
-    list1 = readCSV(filename) # userId,movieId,rating,timestamp
-
-    # 针对每个用户构造一个矩阵把？
-
     return 
 
 
@@ -211,9 +236,6 @@ def main():
     ahpWei = ahp()
     getHotMovies(ahpWei)
 
-
-
-main()
 
 
 # TODO还不就是要接着把用户矩阵搞出来咯！
