@@ -2,9 +2,11 @@ import csv
 import os
 import heapq
 import json
+import math
 import pandas as pd
 import numpy as np
 import pandas as pd
+np.set_printoptions(suppress=True)
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
@@ -105,7 +107,7 @@ def getCommentsNum():
 
 def getUserMovies():
     '''
-    func：搞到每个用户的观影信息，list的index是userid，内容是一个电影+评分的二维数组
+    func：搞到每个用户的观影信息，list的index是userid，内容是一个电影id+评分+平均评分的二维数组
     return：list
     '''
     # 读文件啦
@@ -118,7 +120,7 @@ def getUserMovies():
     col1 = np.asarray(col1)
     userList = []
 
-    print("获取每个用户的观影记录以及评分")
+    print("获取每个用户的观影记录以及评分……done")
     for i in range(np.max(col1) + 1): 
         movieList = arr[np.where(col1 == i)]
         movieList = movieList[:,[1,2]]
@@ -126,10 +128,17 @@ def getUserMovies():
         if(len(movieList) == 0):
             continue
         else:
-            tmp = [i, movieList.tolist()]
+            totalScores = 0.0
+            newMovieList = [] # 为了转换格式，因为原来的movieList里面都是str类型
+            for j in range(len(movieList)):
+                totalScores = totalScores + float(movieList[j][1])
+                newMovieList.append(list(map(eval, movieList[j])))
+
+            avgScores = totalScores / len(movieList)
+            tmp = [i, newMovieList, avgScores]
             userList.append(tmp)
 
-    return userList # id, 二维数组，包含电影和评分，注意是str不是int
+    return userList # col1:id, col2:movielist(str), col3: avg scores
 
 
 def ahp():
@@ -181,7 +190,7 @@ def ahp():
 def getHotMovies(ahp):
     '''
     func:获取电影综合评分后给出热门电影集
-    return: list
+    return: array
     '''
 
     getClicksandAvgScores()
@@ -221,28 +230,87 @@ def getHotMovies(ahp):
         hotMovieList[i][0] = hotMovieIndex[i] # 序号
         hotMovieList[i][1] = AvgScore[hotMovieIndex[i]] # FIXME 不知道要不要把平均分数化成int，毕竟一般评分基本都是int
 
-    print("hot movie index list:   " + str(hotMovieList))
+    # print("hot movie index list:   " + str(hotMovieList))
 
-    return hotMovieList # 是个list
+    return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
 
-def userMartrix(targetUser):
+def userMartrix(targetUser, userMovieList):
+    '''
+    func：获取用户相似度矩阵
+    return：array
+    '''
 
+    maxId =  max([int(i[0]) for i in userMovieList]) # 读取第一列
+
+    userSimMartrix = [[0.0 for col in range(1)] for row in range(maxId + 1)] # 初始化用户矩阵
+    
+    for i in range(len(userMovieList)): # 遍历所有用户
+
+        # 获取每个用户基本信息
+        userId = userMovieList[i][0]
+        userMovies = np.asarray(userMovieList[i][1]) # movieid + scores
+        vuserAvgScores = userMovieList[i][2]
+        
+
+        commonMovies = np.intersect1d(targetUser[:, 0], userMovies[:, 0]) # 找到目标用户和用户一起看过的电影
+        totalMovies = np.union1d(targetUser[:, 0], userMovies[:, 0]) # 二者看过的所有电影之和（无重复）
+        tuserAvgScores = np.sum(targetUser[:, 1]) / len(targetUser) # 目标用户的平均评分
+        sim = 0.0 # 用户相似度
+
+        # print(commonMovies)
+        # print( "target user avg score   " + str(tuserAvgScores))
+        # print( "total movies " + str(len(totalMovies)))
+
+        for j in range(len(commonMovies)):
+            # 获取电影评分
+            movieId = int(commonMovies[j])
+
+            uArr = targetUser[np.where(targetUser[:,0] == movieId)] 
+            vArr = userMovies[np.where(userMovies[:, 0] == movieId)]
+
+            u = uArr[0][1] # target user score
+            v = vArr[0][1] # user score
+            
+            # FIXME 有个问题是，我不知道这里到底算的对不对……
+
+            # 用户评分相似度
+            sim1 = 2 * (1 - 1 / (1 + math.exp(- abs(u - v))))
+
+            # 用户偏好相似度
+            sim2 = 2 * (1 - 1 / (1 + math.exp(- abs((u - tuserAvgScores) - (v - vuserAvgScores)))))
+
+            # 置信度
+            sim3 = len(commonMovies) / len(totalMovies)
+
+            sim = sim + sim1 * sim2 * sim3
+
+        if (len(commonMovies) == 0): # 没有看过一样的电影
+            totalSim = 0
+        else:
+            totalSim = sim/len(commonMovies) # 这就是用户相似度了！！！
+
+        userSimMartrix[userId] = totalSim
+
+    print(userSimMartrix)
+    
+            # print(str(s1) + "/" + str(s2) + "/" + str(s3))
     return 
 
 
 
 def main():
     ahpWei = ahp()
-    getHotMovies(ahpWei)
+    targetUser = getHotMovies(ahpWei)
+
+    userMovieList = getUserMovies()
+
+    # print([int(i[0]) for i in userMovieList])
+    userMartrix(targetUser, userMovieList)
 
 
+main()
 
-# TODO还不就是要接着把用户矩阵搞出来咯！
 
-'''
-读取当前目录/父目录的办法，留着备用
-    print (os.path.abspath(os.path.dirname(os.path.dirname('__file__'))))
-    print (os.path.abspath(os.path.dirname(os.getcwd())))
-    print (os.path.abspath(os.path.join(os.getcwd(), "..")))
-'''
+# TODO 用户矩阵搞出来啦，接下来是要！获取前k个最相似的用户，然后补全评分矩阵
+
