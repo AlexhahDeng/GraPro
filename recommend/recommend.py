@@ -1,5 +1,6 @@
 import csv
 import os
+import sys
 import heapq
 import json
 import math
@@ -7,6 +8,8 @@ import pandas as pd
 import numpy as np
 import pandas as pd
 np.set_printoptions(suppress=True)
+
+# TODO 基本上搞完了，再找个时间整理下逻辑，然后规整一下代码，最好是能把一些参数，名字啥的都给成立好，省的以后要改又一汤子糊！
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
@@ -27,6 +30,9 @@ listUser = np.asarray(listUser)
 
 # ahp一致性检验参数，阶为3的情况
 RI = 0.58
+
+# 最小的负数
+minNum = -sys.maxsize
 
 
 
@@ -118,7 +124,7 @@ def getUserMovies():
     arr = np.asarray(listRating)
     col1 = [int(i[0]) for i in listRating] # 读取第一列
     col1 = np.asarray(col1)
-    userList = []
+    userList = [ [] for i in range(np.max(col1) + 1)]
 
     print("获取每个用户的观影记录以及评分……done")
     for i in range(np.max(col1) + 1): 
@@ -136,7 +142,8 @@ def getUserMovies():
 
             avgScores = totalScores / len(movieList)
             tmp = [i, newMovieList, avgScores]
-            userList.append(tmp)
+            userList[i] = tmp
+    # print(userList[1])
 
     return userList # col1:id, col2:movielist(str), col3: avg scores
 
@@ -237,17 +244,18 @@ def getHotMovies(ahp):
 
 def userMartrix(targetUser, userMovieList):
     '''
-    func：获取用户相似度矩阵
+    func：获取用户相似度矩阵，然后选择前k个用户补全用户评分矩阵，最后获得推荐电影
     return：array
     '''
 
-    maxId =  max([int(i[0]) for i in userMovieList]) # 读取第一列
+    MAXK = 50 # 选择前k个用户
+    MAXMOVIES =100 # 推荐电影数
 
-    userSimMartrix = [[0.0 for col in range(1)] for row in range(maxId + 1)] # 初始化用户矩阵
+    userSimMartrix = [0.0 for row in range(len(userMovieList) + 1)] # 初始化用户相似度矩阵
     
-    for i in range(len(userMovieList)): # 遍历所有用户
+    for i in range(1, len(userMovieList)): # 遍历所有用户，第一个是空的，index和id对上号了
 
-        # 获取每个用户基本信息
+        # 获取每个用户基本信息(col1:userid;col2:movie list;col3:avg scores)
         userId = userMovieList[i][0]
         userMovies = np.asarray(userMovieList[i][1]) # movieid + scores
         vuserAvgScores = userMovieList[i][2]
@@ -256,6 +264,7 @@ def userMartrix(targetUser, userMovieList):
         commonMovies = np.intersect1d(targetUser[:, 0], userMovies[:, 0]) # 找到目标用户和用户一起看过的电影
         totalMovies = np.union1d(targetUser[:, 0], userMovies[:, 0]) # 二者看过的所有电影之和（无重复）
         tuserAvgScores = np.sum(targetUser[:, 1]) / len(targetUser) # 目标用户的平均评分
+
         sim = 0.0 # 用户相似度
 
         # print(commonMovies)
@@ -282,6 +291,7 @@ def userMartrix(targetUser, userMovieList):
 
             # 置信度
             sim3 = len(commonMovies) / len(totalMovies)
+            # print(str(s1) + "/" + str(s2) + "/" + str(s3))
 
             sim = sim + sim1 * sim2 * sim3
 
@@ -290,12 +300,46 @@ def userMartrix(targetUser, userMovieList):
         else:
             totalSim = sim/len(commonMovies) # 这就是用户相似度了！！！
 
-        userSimMartrix[userId] = totalSim
+        userSimMartrix[userId] = totalSim    
 
-    print(userSimMartrix)
-    
-            # print(str(s1) + "/" + str(s2) + "/" + str(s3))
-    return 
+    # print(userSimMartrix)
+
+    # 获取前k个最相似用户
+    preKUserIndex = map(userSimMartrix.index, heapq.nlargest(MAXK, userSimMartrix))
+    preKUserIndex = list(preKUserIndex) # 这里得到的是index
+    allUserSim = 0 # 最相似用户的相似度之和
+
+    movieScoreList = [ [] for i in range(MAXNUM)] # 初始化一个list的list，用来放每个电影的……不知道咋描述
+
+    for i in range(len(preKUserIndex)):
+
+        userId = preKUserIndex[i]
+        userSim = userSimMartrix[userId] # 用户相似度
+        allUserSim = allUserSim + userSim
+
+        userMovies = userMovieList[userId][1] # 获取该用户的观影评分记录
+        userAvgScore = userMovieList[userId][2] # 用户平均评分
+
+        for j in range(len(userMovies)): # 遍历用户观影记录
+            movieId = userMovies[j][0]
+            movieScore = userMovies[j][1]
+            movieScoreList[movieId].append((movieScore - userAvgScore) * userSim)
+
+    # 统计综合预测评分了！！
+    for i in range(len(movieScoreList)):
+        if(movieScoreList[i] == []):
+            movieScoreList[i] = minNum
+        else:
+            tmp = np.asarray(movieScoreList[i])
+            movieScoreList[i] = np.sum(tmp)/allUserSim
+            # print(movieScoreList[i])
+
+    # 获取预测评分最高的电影
+    hotMoviesPre = map(movieScoreList.index, heapq.nlargest(MAXMOVIES, movieScoreList))
+
+    print(list(hotMoviesPre))
+
+    return list(hotMoviesPre)
 
 
 
@@ -304,13 +348,9 @@ def main():
     targetUser = getHotMovies(ahpWei)
 
     userMovieList = getUserMovies()
-
-    # print([int(i[0]) for i in userMovieList])
     userMartrix(targetUser, userMovieList)
 
 
 main()
 
-
-# TODO 用户矩阵搞出来啦，接下来是要！获取前k个最相似的用户，然后补全评分矩阵
 
