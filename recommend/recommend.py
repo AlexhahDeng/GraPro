@@ -14,10 +14,10 @@ np.set_printoptions(suppress=True)
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
 
-# 电影数
+# KEYPOINT 电影数
 MAXNUM = 1000000
 
-# 热门电影数
+# KEYPOINT 热门电影数
 hotMovieNum = 100
 
 # 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数 col4：综合评分
@@ -28,7 +28,7 @@ listMovie = np.asarray(listMovie)
 listUser = [[0.0 for col in range(4)] for row in range(MAXNUM)]
 listUser = np.asarray(listUser)
 
-# ahp一致性检验参数，阶为3的情况
+# ahp一致性检验参数，阶为3的情况，如果后期要加还要根据情况变化
 RI = 0.58
 
 # 最小的负数
@@ -81,7 +81,7 @@ def getClicksandAvgScores():
     filename = dataPath + "ratings.csv"
     list1 = readCSV(filename)
 
-    for i in range(len(list1)): #userId,movieId,rating,timestamp 第一行是header，最后一行是空的
+    for i in range(len(list1)): #userId,movieId,rating,timestamp 第一行是header
         movieNum = int(list1[i][1]) # movieid
         
         listMovie[movieNum][0] = listMovie[movieNum][0] + 1 # count clicks
@@ -91,7 +91,7 @@ def getClicksandAvgScores():
         if(listMovie[i][0] != 0):
             listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
 
-    print("获取点击量和平均评分……done")
+    print("获取点击量和平均评分……done\n")
 
 
 
@@ -108,7 +108,7 @@ def getCommentsNum():
 
         listMovie[movieNum][2] = listMovie[movieNum][2] + 1
 
-    print("获取评论数……done")
+    print("获取评论数……done\n")
 
 
 def getUserMovies():
@@ -124,26 +124,27 @@ def getUserMovies():
     arr = np.asarray(listRating)
     col1 = [int(i[0]) for i in listRating] # 读取第一列
     col1 = np.asarray(col1)
-    userList = [ [] for i in range(np.max(col1) + 1)]
+    userList = [ [] for i in range(np.max(col1) + 1)] # 构造用户list
 
-    print("获取每个用户的观影记录以及评分……done")
     for i in range(np.max(col1) + 1): 
-        movieList = arr[np.where(col1 == i)]
+        movieList = arr[np.where(col1 == i)] # 找到某一id用户的看过的所有电影的集合
         movieList = movieList[:,[1,2]]
 
-        if(len(movieList) == 0):
+        if(len(movieList) == 0): # 该用户没看过电影
             continue
         else:
             totalScores = 0.0
             newMovieList = [] # 为了转换格式，因为原来的movieList里面都是str类型
             for j in range(len(movieList)):
                 totalScores = totalScores + float(movieList[j][1])
-                newMovieList.append(list(map(eval, movieList[j])))
+                newMovieList.append(list(map(eval, movieList[j]))) # str转为int
 
-            avgScores = totalScores / len(movieList)
+            avgScores = totalScores / len(movieList) # 该用户打分的平均值
             tmp = [i, newMovieList, avgScores]
-            userList[i] = tmp
+            userList[i] = tmp # 还是把用户id和list index对上号
+
     # print(userList[1])
+    print("获取每个用户的观影记录以及评分……done\n")
 
     return userList # col1:id, col2:movielist(str), col3: avg scores
 
@@ -186,9 +187,9 @@ def ahp():
     CR = CI/RI
 
     if(CR < 0.1):
-        print("CR:" + str(CR) +"    通过一致性检验")
+        print("CR:" + str(CR) +"    通过一致性检验\n")
     else:
-        print("未通过一致性检验，请重新设计对比矩阵")
+        print("未通过一致性检验，请重新设计对比矩阵\n")
 
     return w # 权重array
 
@@ -208,7 +209,6 @@ def getHotMovies(ahp):
 
     # 归一化每一列的数据
     colMax = np.max(listMovie, axis = 0)
-    print("每一列的最大值：" + str(colMax))
 
     # 获取综合评分
     [rows, cols] = listMovie.shape # 获取电影数组的行列信息
@@ -222,7 +222,7 @@ def getHotMovies(ahp):
             else: # 非最后一列，则通过除以列最大值，归一化数据
                 listMovie[j][i] = listMovie[j][i] / colMax[i]
 
-    # toCsv('movieList',listMovie.tolist()) 
+    # toCsv('movieList',listMovie.tolist()) 做测试用
 
     # 获取最热门的n个电影以及评分
     conpreScores = listMovie[:, cols - 1]
@@ -239,21 +239,23 @@ def getHotMovies(ahp):
 
     # print("hot movie index list:   " + str(hotMovieList))
 
+    print("获取热门电影合集\n")
+
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
 
-def userMartrix(targetUser, userMovieList):
+def userMartrix(targetUser, userMovieList): # FIXME 这里还要再研究一下正确性
     '''
     func：获取用户相似度矩阵，然后选择前k个用户补全用户评分矩阵，最后获得推荐电影
     return：array
     '''
 
-    MAXK = 50 # 选择前k个用户
-    MAXMOVIES =100 # 推荐电影数
+    MAXK = 50 # KEYPOINT 选择前k个用户，可以做修改
+    MAXMOVIES =100 # KEYPOINT 推荐电影数，可以看成边缘节点容量限制
 
     userSimMartrix = [0.0 for row in range(len(userMovieList) + 1)] # 初始化用户相似度矩阵
     
-    for i in range(1, len(userMovieList)): # 遍历所有用户，第一个是空的，index和id对上号了
+    for i in range(1, len(userMovieList)): # 遍历所有用户，第一个是空的，index和id对上号了，否则访问空[]会报错哦
 
         # 获取每个用户基本信息(col1:userid;col2:movie list;col3:avg scores)
         userId = userMovieList[i][0]
@@ -334,9 +336,11 @@ def userMartrix(targetUser, userMovieList):
             movieScoreList[i] = np.sum(tmp)/allUserSim
             # print(movieScoreList[i])
 
+    # FIXME 有个问题，这里统计的最高分的电影是不是得pass掉热门电影集的内容。
     # 获取预测评分最高的电影
     hotMoviesPre = map(movieScoreList.index, heapq.nlargest(MAXMOVIES, movieScoreList))
 
+    print("获取推荐电影集\n")
     print(list(hotMoviesPre))
 
     return list(hotMoviesPre)
