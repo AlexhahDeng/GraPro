@@ -201,9 +201,6 @@ def getHotMovies(ahp):
     return: array
     '''
 
-    getClicksandAvgScores()
-    getCommentsNum()
-
     # 先给我留一个原始的listMovie中的原始平均评分数据 涉及拷贝的问题--用list()函数可解决
     AvgScore = list(listMovie[:, 1])
 
@@ -244,7 +241,7 @@ def getHotMovies(ahp):
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
 
-def userMartrix(targetUser, userMovieList): # FIXME 这里还要再研究一下正确性
+def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一下正确性
     '''
     func：获取用户相似度矩阵，然后选择前k个用户补全用户评分矩阵，最后获得推荐电影
     return：array
@@ -346,14 +343,22 @@ def userMartrix(targetUser, userMovieList): # FIXME 这里还要再研究一下�
     return list(hotMoviesPre)
 
 
-
 def main():
+    # 获取权重
     ahpWei = ahp()
+
+    # 填满电影数据矩阵
+    getClicksandAvgScores()
+    getCommentsNum()
+
+    # 将最热门的电影整合，模拟某用户观影记录
     targetUser = getHotMovies(ahpWei)
 
+    # 获取每个用户的观影记录
     userMovieList = getUserMovies()
-    userMartrix(targetUser, userMovieList)
 
+    # 获取推荐电影集
+    getRecommMovies(targetUser, userMovieList)
 
 main()
 
