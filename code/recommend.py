@@ -8,16 +8,18 @@ import random
 import pandas as pd
 import numpy as np
 import pandas as pd
+from func import *
+import datetime
 np.set_printoptions(suppress=True)
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
 
-# KEYPOINT 电影数
+# 电影数(只有在换数据集的时候才需要改)
 MAXNUM = 1000000
 
 # KEYPOINT 热门电影数
-hotMovieNum = 100
+hotMovieNum = 200
 
 # 直接把电影列表作为全局变量把！col1：电影点击数 col2：电影平均评分 col3：电影评论数 col4：综合评分
 listMovie = [[0.0 for col in range(4)] for row in range(MAXNUM)] 
@@ -33,87 +35,13 @@ RI = 0.58
 # 最小的负数
 minNum = -sys.maxsize
 
-
-
-def readCSV(filePath):
-    '''
-    func:读取csv的内容
-    '''
-
-    try:
-        file=open(filePath,'r',encoding="gbk")# 读取以utf-8
-        context = file.read() # 读取成str
-        list_result=context.split("\n")#  以回车符\n分割成单独的行
-
-        #每一行的各个元素是以【,】分割的，因此可以
-        length=len(list_result)
-
-        for i in range(1, length): 
-            list_result[i]=list_result[i].split(",")
-        
-        list_result.remove(list_result[0]) # 删除第一行
-
-        return list_result
-
-    except Exception:
-        print("文件读取转换失败，请检查文件路径及文件编码是否正确")
-    
-    finally:
-        file.close();# 操作完成一定要关闭
-
-
-
-def toCsv(filename, list1):
-    '''
-    func:把listMovie数据写入 csv（是list类型的哦，当心别传入array
-    '''
-    name = ['clickNum', 'avgScore', 'commNum', 'conpreScore']
-    test = pd.DataFrame(columns = name, data = list1)
-    test.to_csv(dataPath+filename+'.csv',encoding = 'gbk')
-
-
-
-def getClicksandAvgScores():
-    '''
-    func:获取点击量和平均评分，结果计入listMovie数组
-    '''
-    filename = dataPath + "ratings.csv"
-    list1 = readCSV(filename)
-
-    for i in range(len(list1)): #userId,movieId,rating,timestamp 第一行是header
-        movieNum = int(list1[i][1]) # movieid
-        
-        listMovie[movieNum][0] = listMovie[movieNum][0] + 1 # count clicks
-        listMovie[movieNum][1] = float(list1[i][2]) + listMovie[movieNum][1] # count scores
-
-    for i in range(len(listMovie)):
-        if(listMovie[i][0] != 0):
-            listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
-
-    print("获取点击量和平均评分……done\n")
-
-
-
-def getCommentsNum():
-    '''
-    func: 获取评论数，结果直接计入listMovie数组
-    '''
-
-    filename = dataPath + "tags.csv"
-    list1 = readCSV(filename)
-
-    for i in range(len(list1)): #userId,movieId,tag,timestamp
-        movieNum = int(list1[i][1])
-
-        listMovie[movieNum][2] = listMovie[movieNum][2] + 1
-
-    print("获取评论数……done\n")
-
+# KEYPOINT 推荐电影数，可以看成边缘节点容量限制
+EDGEMAXMOVIES =200
 
 def getUserMovies():
     '''
     func：搞到每个用户的观影信息，list的index是userid，内容是一个电影id+评分+平均评分的二维数组
-    return：list
+    return：list--col1:id, col2:movielist(str), col3: avg scores
     '''
     # 读文件啦
     filename = dataPath + 'ratings.csv'
@@ -145,8 +73,7 @@ def getUserMovies():
     # print(userList[1])
     print("获取每个用户的观影记录以及评分……done\n")
 
-    return userList # col1:id, col2:movielist(str), col3: avg scores
-
+    return userList 
 
 def ahp():
     '''
@@ -192,12 +119,14 @@ def ahp():
 
     return w # 权重array
 
-
-
 def getHotMovies(ahp, mvlist):
     '''
-    func:获取电影综合评分后给出热门电影集
-    return: array
+    func:
+        1、根据ahp结果，统计每个电影的综合评分
+        2、根据分数高低，获取top-n个电影
+    points：
+        1、可以改变top-n的数量来看数据变化
+    return: array--col1是movie id,col2是score
     '''
 
     # 先给我留一个原始的listMovie中的原始平均评分数据 涉及拷贝的问题--用list()函数可解决
@@ -239,15 +168,19 @@ def getHotMovies(ahp, mvlist):
 
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
-
 def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一下正确性
     '''
-    func：获取用户相似度矩阵，然后选择前k个用户补全用户评分矩阵，最后获得推荐电影
-    return：array
+    func：
+        1、获取用户相似度矩阵
+        2、然后选择前k个用户补全用户针对电影的评分矩阵
+        3、对电影评分矩阵排序获取前n个就是推荐的电影
+    points：
+        1、考虑是否从推荐电影中去掉热门电影
+        2、可以改变推荐的数量
+    return：array, movie id
     '''
 
     MAXK = 50 # KEYPOINT 选择前k个用户，可以做修改
-    MAXMOVIES =100 # KEYPOINT 推荐电影数，可以看成边缘节点容量限制
 
     userSimMartrix = [0.0 for row in range(len(userMovieList) + 1)] # 初始化用户相似度矩阵
     
@@ -334,21 +267,30 @@ def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一
 
     # FIXME 有个问题，这里统计的最高分的电影是不是得pass掉热门电影集的内容。
     # 获取预测评分最高的电影
-    hotMoviesPre = map(movieScoreList.index, heapq.nlargest(MAXMOVIES, movieScoreList))
+    hotMoviesPre = map(movieScoreList.index, heapq.nlargest(EDGEMAXMOVIES, movieScoreList))
 
-    print("获取推荐电影集\n")
-    print(list(hotMoviesPre))
+    return np.asarray(list(hotMoviesPre))
 
-    return list(hotMoviesPre)
+def analyze(recoMovies, hotMovies, userMovies):
+    print("推荐电影命中率……\n")
+    recoHitRate = len(np.intersect1d(recoMovies, userMovies)) / len(userMovies)
+    print(str(recoHitRate) + "\n")
 
+    print("最流行存储命中率……\n")
+    hotHitRate = len(np.intersect1d(hotMovies, userMovies)) / len(userMovies)
+    print(str(hotHitRate) + "\n")
+
+    print(str(recoMovies)+"\n"+str(hotMovies)+"\n"+str(userMovies))
+
+    
 
 def main():
     # 获取权重
     ahpWei = ahp()
 
     # 填满电影数据矩阵
-    getClicksandAvgScores()
-    getCommentsNum()
+    getClicksandAvgScores(listMovie)
+    getCommentsNum(listMovie)
 
     # 将最热门的电影整合，模拟某用户观影记录
     targetUser = getHotMovies(ahpWei, listMovie)
@@ -362,58 +304,23 @@ def main():
 
 def test():
 
-    # 获取随机生成的边缘用户集,100个用户！
-    allUser = np.asarray(readCSV(dataPath + "ratings.csv"))
-    userId = allUser[:,0]
-    edgeUserId = random.sample(list(userId), 100)
-    print("边缘用户id\n" + str(edgeUserId))
-
-    # 读取打分和标签文件
-    rating = np.asarray(readCSV(dataPath + "ratings.csv"))
-    tag = np.asarray(readCSV(dataPath + "tags.csv"))
-
-    # 获取边缘用户观影记录
-    edgeUserMovieList = [[0.0 for col in range(4)] for row in range(MAXNUM)] 
-
-    # FIXME 这个地方还是要处理一下timestamp，把时间划分成两块，前一块用作训练获取推荐，后一块用作测试，看看命中率
-    
-    for i in range(len(edgeUserId)):    
-        userid = edgeUserId[i]
-        # print(userid)
-        MovieList = rating[np.where(rating[:,0] == userid)]
-        TagList = tag[np.where(tag[:,0] == userid)]
-
-        for j in range(len(MovieList)):
-            movieid = int(MovieList[j][1])
-            # print(movieid)
-            edgeUserMovieList[movieid][0] += 1 # 点击量++
-            edgeUserMovieList[movieid][1] += float(MovieList[j][2]) # 评分++
-
-        for j in range(len(TagList)):
-            movieid = int(TagList[j][1])
-            edgeUserMovieList[movieid][2] += 1 # 评论数++
-
-    # 弄成平均分
-    for i in range(len(edgeUserMovieList)):
-        if(edgeUserMovieList[i][0] == 0):
-            continue
-        else:
-            edgeUserMovieList[i][1] = edgeUserMovieList[i][1] / edgeUserMovieList[i][0]
-
-
-    # print(np.max(np.asarray(edgeUserMovieList), axis = 0))
-
+    # 获取每个参数的权重
     ahpwei = ahp()
-    targetUser = getHotMovies(ahpwei, np.asarray(edgeUserMovieList))
+
+    # 获取模拟数
+    edgeUserMovieList, testMovies = edgeUser()
+
+    # 获取热门电影集
+    targetUser = getHotMovies(ahpwei, edgeUserMovieList)
 
     # 获取每个用户的观影记录
     userMovieList = getUserMovies()
 
     # 获取推荐电影集
-    getRecommMovies(targetUser, userMovieList)
+    recommMovieList = getRecommMovies(targetUser, userMovieList)
 
-
-
+    # 开始分析结果
+    analyze(recommMovieList,targetUser[:,0],testMovies)
 
 test()
 

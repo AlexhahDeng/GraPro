@@ -76,3 +76,13 @@ con：好像也没干啥，弄清楚了dataset里面都有啥。然后有了前�
 
 * 遗留了一些问题要fix，等到要写论文了再说？
 * 还有个很重要的！！！**把数据分为验证和训练两部分的问题！**
+
+### 20200321
+
+* 关于数据集更多信息 It contains 100836 ratings and 3683 tag applications across 9742 movies. These data were created by 610 users **between March 29, 1996 and September 24, 2018.**
+
+* 那么问题来了？为什么测试的结果那么好？
+  * 可能是本身训练15年，测试7年，7年观影量很大了，所以可能基本推荐的都看过了
+  * whatever，再想想把
+
+
