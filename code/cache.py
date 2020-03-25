@@ -22,6 +22,12 @@ VIDEOMAXSIZE = 200
 # 获取ahp权重
 WEIGHT = ahp()
 
+POPULATION_SIZE = 10 # 初始化种群大小
+GENERATION_TIME = 200 # 最大迭代次数
+MAX_SCORE = 5 # FIXME 咱也不知道，只能先随便整一个
+CROSS_RATE = 0.5 # 交叉概率
+MUTATE_RATE = 0.01 # 变异概率
+
 def overallRating(video):
     '''
     func:
@@ -90,18 +96,78 @@ def generatePopulation(group_size, gene_len):
         2、传入参数为边缘结点目前电影个数
         3、每个序列代表一种替换方案，但并不保证替换符合要求（比如大小超过了）
     return：
-        array，种群所有个体
+        list，种群所有个体
     '''
     group = []
     for i in range(group_size):
         individual = []
         for j in range(gene_len):
             individual.append(random.randint(0,1)) # 随机化染色体序列咯
-        group.append(individual)
+        
+        # 为了变成好用的东西
+        tmp = []
+        tmp.append(individual)
+        tmp.append([])
+        group.append(tmp)
 
     print("种群初始化……\n")
 
-    return np.asarray(group)
+    return group
+
+
+def fitness(edgeMovies, leftRoom, individual):
+    # 首先判断大小是不是超过限制，若是，则直接适应度为负数，毙掉
+    totalSize = 0
+    scores = 0.0
+
+    for j in range(len(individual)):
+        if(individual[j] == 1):
+            totalSize += edgeMovies[j][1]
+            scores += edgeMovies[j][2]
+        else:
+            continue
+    
+    if(totalSize > leftRoom):
+        return -1
+    else:
+        return scores
+
+
+def random_pick(some_list,probabilities):
+    x = random.uniform(0,1)
+    cumulative_probability=0.0
+    count = 0
+    for item,item_probability in zip(some_list,probabilities):
+        cumulative_probability+=item_probability
+        if x < cumulative_probability:
+            break
+        count += 1
+    return count
+# BUG 魔改了一下
+
+def cross(group, leftRoom, edgeMovies):
+
+    # FIXME 先用随机选择的方法⑧
+    childList = []
+    group = np.asarray(group)
+
+    sum = np.sum(group[:,1])
+    pos = group[:,1]/sum
+
+    for i in range(len(pos)):
+        pos[i] = round(pos[i], 3)
+    
+    # 实在是没办法保证概率之和为1，只能随机加减了
+    pos[random.randint(0, len(pos)-1)] -= (np.sum(pos) - 1)
+
+    index = random_pick(group[:,1], pos)
+    # print(index)
+    # TODO 能够按轮盘赌办法随机选择个体了
+
+
+
+
+    return 
 
 def GA(edgeMovies, leftRoom):
     '''
@@ -111,39 +177,32 @@ def GA(edgeMovies, leftRoom):
     return：
         最佳video组合
     '''
-    
-    POPULATION_SIZE = 50 # 初始化种群大小
-    GENERATION_TIME = 200 # 最大迭代次数
-    CROSS_RATE = 0.5 # 交叉概率
-    MUTATE_RATE = 0.01 # 变异概率
 
-    # print("edge movies \n" + str(edgeMovies) + "\n")
-    # print("left space " + str(leftRoom) + "\n")
-    initialGroup = generatePopulation(POPULATION_SIZE ,len(edgeMovies))
+    # group结构[[[染色体序列]，[fitness]],……]
+    Group = generatePopulation(POPULATION_SIZE ,len(edgeMovies))
 
     print("种群大小     " + str(POPULATION_SIZE) + "\n" + "染色体长度   " + str(len(edgeMovies)) + "\n")
     print("剩余空间大小     " + str(leftRoom) + "\n")
 
     # 计算适应度
-    fitness = [0.0 for i in range(len(initialGroup))]
+    for i in range(len(Group)):
+        individual = Group[i][0]
+        scores = fitness(edgeMovies, leftRoom, individual)
 
-    for i in range(len(initialGroup)):
-        individual = initialGroup[i]
-        # 首先判断大小是不是超过限制，若是，则直接适应度为负数，毙掉
-        totalSize = 0
-        scores = 0.0
-
-        for j in range(len(individual)):
-            if(individual[j] == 1):
-                totalSize += edgeMovies[j][1]
-                scores += edgeMovies[j][2]
-            else:
-                continue
-        
-        if(totalSize > leftRoom):
-            fitness[i] = -1
+        # 分数不合要求直接毙掉
+        if ( scores == -1):
+            Group.pop(i)
         else:
-            fitness[i] = scores
+            Group[i][1] = scores
+
+    cross(Group, leftRoom, edgeMovies)
+    # for i in range(GENERATION_TIME):
+
+    #     # 交叉
+
+
+    #     # 变异
+
 
 
 
