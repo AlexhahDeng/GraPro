@@ -22,11 +22,11 @@ VIDEOMAXSIZE = 200
 # 获取ahp权重
 WEIGHT = ahp()
 
-POPULATION_SIZE = 10 # 初始化种群大小
+POPULATION_SIZE = 25 # 初始化种群大小
 GENERATION_TIME = 200 # 最大迭代次数
 MAX_SCORE = 5 # FIXME 咱也不知道，只能先随便整一个
-CROSS_RATE = 0.5 # 交叉概率
-MUTATE_RATE = 0.01 # 变异概率
+CROSS_TIME = 50 # 交叉次数
+MUTATE_TIME = 50 # 变异次数
 
 def overallRating(video):
     '''
@@ -147,12 +147,12 @@ def random_pick(some_list,probabilities):
 
 def cross(group, leftRoom, edgeMovies):
 
-    # FIXME 先用随机选择的方法⑧
-    childList = []
-    group = np.asarray(group)
+    # KEYPOINT 轮盘赌的方法⑧
+    # childList = [] 暂且是用不上
+    groupArray = np.asarray(group)
 
-    sum = np.sum(group[:,1])
-    pos = group[:,1]/sum
+    sum = np.sum(groupArray[:,1])
+    pos = groupArray[:,1]/sum
 
     for i in range(len(pos)):
         pos[i] = round(pos[i], 3)
@@ -160,14 +160,95 @@ def cross(group, leftRoom, edgeMovies):
     # 实在是没办法保证概率之和为1，只能随机加减了
     pos[random.randint(0, len(pos)-1)] -= (np.sum(pos) - 1)
 
-    index = random_pick(group[:,1], pos)
-    # print(index)
-    # TODO 能够按轮盘赌办法随机选择个体了
+    # print(str(group) + "???")
+    # 开始交配~（怪怪的、次数自定
+    for i in range(CROSS_TIME):
+
+        # 随机选择个体，不能自交哦
+        mo = random_pick(groupArray[:,1], pos)
+        fa = random_pick(groupArray[:,1], pos)
+
+        while(fa == mo):
+            fa = random_pick(groupArray[:,1], pos)
+        
+        # 还是随机单点交叉把
+        location = random.randint(0, len(pos) - 1)
+
+        mo = groupArray[mo][0]
+        mo_part = mo[:location]
+
+        fa = groupArray[fa][0]
+        fa_part = fa[:location]
+
+        child1 = np.append(mo_part, fa[location:]) # mo_part.append(fa[location:])
+        child2 = np.append(fa_part, mo[location:]) # fa_part.append(mo[location:])
+
+        # 计算后代的适应度
+        scores1 = fitness(edgeMovies, leftRoom, child1)
+        scores2 = fitness(edgeMovies, leftRoom, child2)
 
 
+        if(scores1 != -1):
+            tmp = []
+            tmp.append(list(child1))
+            tmp.append(scores1)
+            group.append(tmp)
+        
+        if(scores2 != -1):
+            tmp = []
+            tmp.append(list(child2))
+            tmp.append(scores2)
+            group.append(tmp)
+
+    # 排序毙掉最弱的哦
+    scores = list(np.asarray(group)[:,1])
+
+    # 获取分数最高的n个
+    top_n = list(map(scores.index, heapq.nlargest(POPULATION_SIZE, scores)))
+    new_group = []
+
+    for i in range(len(top_n)):
+        new_group.append(group[top_n[i]])
+
+    return new_group
 
 
-    return 
+def mutate(group, leftRoom, edgeMovies):
+
+    # 单点变异把
+    for i in range(MUTATE_TIME):
+        # 先随机选择变异个体把
+        mutate_index = random.randint(0, len(group) - 1)
+        individual = list(group[mutate_index][0]) # KEYPOINT 这是不用list的话，就把parent搭进去了
+
+        # 选择变异位置
+        mutate_location = random.randint(0, len(individual) - 1)
+
+        if(individual[mutate_location] == 1):
+            individual[mutate_location] == 0
+        else:
+            individual[mutate_location] == 1
+
+        scores = fitness(edgeMovies, leftRoom, individual)
+
+        if(scores != -1):
+            tmp = []
+            tmp.append(individual)
+            tmp.append(scores)
+            group.append(tmp)
+
+    # 排序毙掉最弱的哦
+    scores = list(np.asarray(group)[:,1])
+
+    # 获取分数最高的n个
+    top_n = list(map(scores.index, heapq.nlargest(POPULATION_SIZE, scores)))
+    new_group = []
+
+    for i in range(len(top_n)):
+        new_group.append(group[top_n[i]])
+
+    return new_group
+
 
 def GA(edgeMovies, leftRoom):
     '''
@@ -195,13 +276,46 @@ def GA(edgeMovies, leftRoom):
         else:
             Group[i][1] = scores
 
-    cross(Group, leftRoom, edgeMovies)
-    # for i in range(GENERATION_TIME):
+    test_group = list(Group)
+    for i in range(GENERATION_TIME):
 
+        # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
+        # print(Group)
+        # 交叉
+        cross_group = cross(test_group, leftRoom, edgeMovies)
+
+        # print("after cross highest" + "     " + str(np.max(np.asarray(cross_group)[:,1])))
+        # print(new_group)
+        # 变异
+        mutate_group = mutate(cross_group, leftRoom, edgeMovies)
+        # print("after mutate highest" + "     " + str(np.max(np.asarray(mutate_group)[:,1])))
+
+        test_group = mutate_group
+
+    print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
+    print("final highest" + "        " + str(np.max(np.asarray(test_group)[:,1])))
+
+        
+    # test_group = list(Group)
+    # for i in range(2000):
+
+    #     # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
+    #     # print(Group)
     #     # 交叉
+    #     cross_group = cross(test_group, leftRoom, edgeMovies)
 
-
+    #     # print("after cross highest" + "     " + str(np.max(np.asarray(cross_group)[:,1])))
+    #     # print(new_group)
     #     # 变异
+    #     mutate_group = mutate(cross_group, leftRoom, edgeMovies)
+    #     # print("after mutate highest" + "     " + str(np.max(np.asarray(mutate_group)[:,1])))
+
+    #     test_group = mutate_group
+
+    # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
+    # print("final highest" + "        " + str(np.max(np.asarray(test_group)[:,1])))
+
+
 
 
 
