@@ -71,7 +71,7 @@ def getUserMovies():
             userList[i] = tmp # 还是把用户id和list index对上号
 
     # print(userList[1])
-    print("获取每个用户的观影记录以及评分……done\n")
+    # print("获取每个用户的观影记录以及评分……done\n")
 
     return userList 
 
@@ -121,7 +121,7 @@ def getHotMovies(ahp, mvlist):
 
     # print("hot movie index list:   " + str(hotMovieList))
 
-    print("获取热门电影合集\n")
+    # print("获取热门电影合集\n")
 
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
@@ -229,15 +229,20 @@ def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一
     return np.asarray(list(hotMoviesPre))
 
 def analyze(recoMovies, hotMovies, userMovies):
-    print("推荐电影命中率……\n")
+    '''
+    return: 推荐电影命中率，最流行命中率
+    '''
+    # print("推荐电影命中率……\n")
     recoHitRate = len(np.intersect1d(recoMovies, userMovies)) / len(userMovies)
-    print(str(recoHitRate) + "\n")
+    # print(str(recoHitRate) + "\n")
 
-    print("最流行存储命中率……\n")
+    # print("最流行存储命中率……\n")
     hotHitRate = len(np.intersect1d(hotMovies, userMovies)) / len(userMovies)
-    print(str(hotHitRate) + "\n")
+    # print(str(hotHitRate) + "\n")
 
     # print(str(recoMovies)+"\n"+str(hotMovies)+"\n"+str(userMovies))
+
+    return recoHitRate, hotHitRate
 
     
 
@@ -259,29 +264,39 @@ def main():
     getRecommMovies(targetUser, userMovieList)
 
 
-def test():
+def testUserNum():
 
     # 获取每个参数的权重
     ahpwei = ahp()
+    test_result = []
+    for i in range(5,100):
+        
+        curr = []
+        # 获取模拟数
+        edgeUserNum = i * 5
+        edgeUserMovieList, testMovies = edgeUser(edgeUserNum)
+        if(len(testMovies) == 0):
+            continue # 莫得测试数据
+        print("usernum" + str(edgeUserNum))
+        
+        # 获取热门电影集
+        targetUser = getHotMovies(ahpwei, edgeUserMovieList)
 
-    # 获取模拟数
-    edgeUserMovieList, testMovies = edgeUser()
+        # 获取每个用户的观影记录
+        userMovieList = getUserMovies()
 
-    # 获取热门电影集
-    targetUser = getHotMovies(ahpwei, edgeUserMovieList)
+        # 获取推荐电影集
+        recommMovieList = getRecommMovies(targetUser, userMovieList)
 
-    # 获取每个用户的观影记录
-    userMovieList = getUserMovies()
+        # 开始分析结果
+        recohitrate, hothitrate = analyze(recommMovieList,targetUser[:,0],testMovies)
 
-    # 获取推荐电影集
-    recommMovieList = getRecommMovies(targetUser, userMovieList)
+        curr.append(edgeUserNum)
+        curr.append(recohitrate)
+        curr.append(hothitrate)
 
-    # 开始分析结果
-    analyze(recommMovieList,targetUser[:,0],testMovies)
-
-test()
-
+        test_result.append(curr)
     
+    toCSV("usernum",["num","reco hit rate","most pop rate"],test_result)
 
-
-
+testUserNum()

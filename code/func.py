@@ -14,9 +14,11 @@ np.set_printoptions(suppress=True)
 
 # 数据路径
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
+# 结果路径
+resultPath = os.path.abspath(os.path.dirname(os.getcwd())) + "\\result\\" 
 
 # 边缘用户数量
-edgeUserNum = 100
+# edgeUserNum = 100
 
 # KEYPOINT 电影数
 MAXNUM = 1000000
@@ -54,14 +56,14 @@ def readCSV(filePath):
         file.close();# 操作完成一定要关闭
 
 
-def toCSV(name, list1):
+def toCSV(filename, name, list1):
     '''
-    para:name=[], list1=[]
+    para:filename,name=[], list1=[]
     func:把listMovie数据写入 csv（是list类型的哦，当心别传入array
     '''
-    filename = "result"
+    filename = resultPath + filename + ".csv"
     test = pd.DataFrame(columns = name, data = list1)
-    test.to_csv(dataPath+filename+'.csv',encoding = 'gbk')
+    test.to_csv(filename,encoding = 'gbk')
 
 
 def getClicksandAvgScores(listMovie):
@@ -81,7 +83,7 @@ def getClicksandAvgScores(listMovie):
         if(listMovie[i][0] != 0):
             listMovie[i][1] = listMovie[i][1] / listMovie[i][0]
 
-    print("获取点击量和平均评分……done\n")
+    # print("获取点击量和平均评分……done\n")
     return listMovie
 
 
@@ -99,11 +101,11 @@ def getCommentsNum(listMovie):
 
         listMovie[movieNum][2] = listMovie[movieNum][2] + 1
 
-    print("获取评论数……done\n")
+    # print("获取评论数……done\n")
     return listMovie
 
 
-def edgeUser():
+def edgeUser(edgeUserNum):
     '''
     func:
         1、随机生成用户集合（集合用户数量可以控制
@@ -119,7 +121,7 @@ def edgeUser():
     userId = allUser[:,0]
     edgeUserId = random.sample(list(userId), edgeUserNum)
     
-    print("边缘用户id\n" + str(edgeUserId))
+    # print("边缘用户id\n" + str(edgeUserId))
 
     # 读取打分和标签文件
     rating = np.asarray(readCSV(dataPath + "ratings.csv"))
@@ -132,6 +134,7 @@ def edgeUser():
     # 数据集时间跨度：1996/0529--20180924（22年）取前15年训练好了
     d_start = datetime.datetime(1970,1,1)
     d_end = datetime.datetime(2011,1,1)
+    train_seconds = (datetime.datetime(2012,1,1) - d_start).days * 24 * 3600 # 测试集选1年
 
     seconds = (d_end - d_start).days * 24 * 3600 # 计算秒数，时间戳大于这个就纳入训练
 
@@ -146,7 +149,7 @@ def edgeUser():
             timestamp = int(MovieList[j][3])
             movieid = int(MovieList[j][1])
 
-            if(timestamp > seconds): # 训练集
+            if(timestamp > seconds and timestamp < train_seconds): # 训练集
                 if(movieid not in testMovieList):
                     testMovieList.append(movieid)
             else: 
@@ -214,4 +217,5 @@ def ahp():
     else:
         print("未通过一致性检验，请重新设计对比矩阵\n")
 
+    print("权重因子为"+str(w))
     return w # 权重array
