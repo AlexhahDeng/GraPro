@@ -36,7 +36,7 @@ RI = 0.58
 minNum = -sys.maxsize
 
 # KEYPOINT 推荐电影数，可以看成边缘节点容量限制
-EDGEMAXMOVIES =200
+EDGEMAXMOVIES =500
 
 def getUserMovies():
     '''
@@ -76,11 +76,12 @@ def getUserMovies():
     return userList 
 
 
-def getHotMovies(ahp, mvlist):
+def getHotMovies(ahp, mvlist, num):
     '''
     func:
         1、根据ahp结果，统计每个电影的综合评分
         2、根据分数高低，获取top-n个电影
+    input: ahp是权重；mvlist是待评价的电影list；Num是电影数目
     points：
         1、可以改变top-n的数量来看数据变化
     return: array--col1是movie id,col2是score
@@ -110,7 +111,7 @@ def getHotMovies(ahp, mvlist):
     conpreScores = mvlist[:, cols - 1]
     conpreScores = conpreScores.tolist()
 
-    hotMovieIndex = map(conpreScores.index, heapq.nlargest(hotMovieNum, conpreScores)) # 获取综合评分最高的前hotMovieNum个movie id
+    hotMovieIndex = map(conpreScores.index, heapq.nlargest(num, conpreScores)) # 获取综合评分最高的前hotMovieNum个movie id
 
     hotMovieIndex = list(hotMovieIndex)
     hotMovieList = [[0.0 for col in range(2)] for row in range(hotMovieNum)]
@@ -119,13 +120,10 @@ def getHotMovies(ahp, mvlist):
         hotMovieList[i][0] = hotMovieIndex[i] # 序号
         hotMovieList[i][1] = AvgScore[hotMovieIndex[i]] # FIXME 不知道要不要把平均分数化成int，毕竟一般评分基本都是int
 
-    # print("hot movie index list:   " + str(hotMovieList))
-
-    # print("获取热门电影合集\n")
 
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
-def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一下正确性
+def getRecommMovies(targetUser, userMovieList, movienum): # FIXME 这里还要再研究一下正确性
     '''
     func：
         1、获取用户相似度矩阵
@@ -224,7 +222,7 @@ def getRecommMovies(targetUser, userMovieList): # FIXME 这里还要再研究一
 
     # FIXME 有个问题，这里统计的最高分的电影是不是得pass掉热门电影集的内容。
     # 获取预测评分最高的电影
-    hotMoviesPre = map(movieScoreList.index, heapq.nlargest(EDGEMAXMOVIES, movieScoreList))
+    hotMoviesPre = map(movieScoreList.index, heapq.nlargest(movienum, movieScoreList))
 
     return np.asarray(list(hotMoviesPre))
 
@@ -244,59 +242,154 @@ def analyze(recoMovies, hotMovies, userMovies):
 
     return recoHitRate, hotHitRate
 
+
+def hitRate(movieList, allMovies):
+
+    return len(np.intersect1d(movieList, allMovies)) / len(allMovies)
+
+
+def getuserSeperate(edgeUserId, userMovieList):
+    '''
+    func：尝试新方法来获取推荐内容，每个用户单独推荐，获取推荐矩阵
+    return：movie id(array)
+    '''
+
+    # 获取边缘用户记录
+    movieList = [[0 for i in range(2)] for j in range(MAXNUM)]
+
+    # 针对每个单独的用户获得推荐电影
+    for i in range(len(edgeUserId)):
+
+        target_user_id = int(edgeUserId[i])
+        target_user_movie = userMovieList[target_user_id][1]
+
+        recommMovieList = getRecommMovies(np.asarray(target_user_movie), userMovieList, EDGEMAXMOVIES)
+
+        for j in range(len(recommMovieList)):
+            movieId = int(recommMovieList[j])
+            # if(movieId == 0): # BUG 可能是有个随机bug…whatever管他呢
+            #     print("ono")
+            #     break
+            movieList[movieId][0] = movieId
+            movieList[movieId][1] += 1
+        
+        
+    movieList = np.asarray(movieList)
+    movieIndex = movieList[movieList[:,1].argsort()]
+
+    # 选择缓存的电影数量
+    movieIndex = movieIndex[-EDGEMAXMOVIES:]
+    movieIndex = movieIndex[:,0] #只要第一列
+
+    # toCSV("hotmovies", ["clicknum"], movieList, True)
+    return movieIndex
     
+def getRecoMovies(edgeUserMovieList, userMovieList):
+    '''
+    func：
+        1、获取把边缘节点所有用户看作一个整体来进行推荐的结果
+        2、获取边缘区域最流行缓存的结果
 
-def main():
-    # 获取权重
-    ahpWei = ahp()
+    return: reco movies(movie id),popular movies(movie id) -- array
+    '''
 
-    # 填满电影数据矩阵
+    ahpwei = ahp()
+
+    # 获取热门电影集(这里的热门电影集合是局部的)
+    targetUser = getHotMovies(ahpwei, edgeUserMovieList, EDGEMAXMOVIES)
+
+    # 获取局部热门电影用作最流行缓存
+    mostPopMovies = targetUser[:,0]
+
+    # 获取推荐电影集
+    recommMovieList = getRecommMovies(targetUser, userMovieList, EDGEMAXMOVIES)
+
+    return recommMovieList, mostPopMovies
+
+def getWWPopMovies():
+
+    ahpwei = ahp()
+
     getClicksandAvgScores(listMovie)
     getCommentsNum(listMovie)
 
-    # 将最热门的电影整合，模拟某用户观影记录
-    targetUser = getHotMovies(ahpWei, listMovie)
+    movieList = getHotMovies(ahpwei, listMovie, EDGEMAXMOVIES)
 
-    # 获取每个用户的观影记录
+    return movieList[:,0]
+
+def main():
+
+    # 边缘节点用户数量
+    edgeUserNum = 50
+
+    # 所有用户观影记录
     userMovieList = getUserMovies()
 
-    # 获取推荐电影集
-    getRecommMovies(targetUser, userMovieList)
+    # 随机生成边缘用户
+    edgeUserId = generateEdgeUser(edgeUserNum)
+
+    # 获取边缘节点用户观影记录
+    edgeUserMovieList, testMovies = edgeUser(edgeUserId)    
+
+    # 获取针对独立用户的推荐结果
+    userSeperate = getuserSeperate(edgeUserId, userMovieList)
+    print("用户分开推荐结果     " + str(hitRate(userSeperate, testMovies)))
+
+    # 将所有边缘用户看成模拟为一个用户进行推荐
+    userAsOne, hotMovies = getRecoMovies(edgeUserMovieList, userMovieList)
+    print("用户看成整体推荐结果     " + str(hitRate(userAsOne, testMovies)))
+    print("区域最流行缓存       " + str(hitRate(hotMovies, testMovies)))
+
+    # 获取全局最流行缓存
+    wwpopmovies = getWWPopMovies()
+    print("全局最流行缓存        " + str(hitRate(wwpopmovies, testMovies)))
+
+    analyze(userSeperate, userAsOne, testMovies)
+
+    return
 
 
 def testUserNum():
-
-    # 获取每个参数的权重
-    ahpwei = ahp()
+    '''
+    func：判断区域用户数量多少的影响
+    '''
     test_result = []
-    for i in range(5,100):
-        
+    # 所有用户观影记录
+    userMovieList = getUserMovies()
+
+    for i in range(5,20):
         curr = []
+
         # 获取模拟数
         edgeUserNum = i * 5
-        edgeUserMovieList, testMovies = edgeUser(edgeUserNum)
+        edgeUserId = generateEdgeUser(edgeUserNum)
+        edgeUserMovieList, testMovies = edgeUser(edgeUserId)
+
         if(len(testMovies) == 0):
+            i -= 1
             continue # 莫得测试数据
         print("usernum" + str(edgeUserNum))
-        
-        # 获取热门电影集
-        targetUser = getHotMovies(ahpwei, edgeUserMovieList)
 
-        # 获取每个用户的观影记录
-        userMovieList = getUserMovies()
+        # 获取边缘节点用户观影记录
+        edgeUserMovieList, testMovies = edgeUser(edgeUserId)    
 
-        # 获取推荐电影集
-        recommMovieList = getRecommMovies(targetUser, userMovieList)
+        # 获取针对独立用户的推荐结果
+        userSeperate = getuserSeperate(edgeUserId, userMovieList)
 
-        # 开始分析结果
-        recohitrate, hothitrate = analyze(recommMovieList,targetUser[:,0],testMovies)
+        # 将所有边缘用户看成模拟为一个用户进行推荐
+        userAsOne, hotMovies = getRecoMovies(edgeUserMovieList, userMovieList)
+
+        # 获取全局最流行缓存
+        wwpopmovies = getWWPopMovies()
 
         curr.append(edgeUserNum)
-        curr.append(recohitrate)
-        curr.append(hothitrate)
+        curr.append(hitRate(userSeperate, testMovies))
+        curr.append(hitRate(userAsOne, testMovies))
+        curr.append(hitRate(hotMovies, testMovies))
+        curr.append(hitRate(wwpopmovies, testMovies))
 
         test_result.append(curr)
     
-    toCSV("usernum",["num","reco hit rate","most pop rate"],test_result)
+    toCSV("usernum2",["num","seperate","asOne","edgehotMovies", "worldwideHotMovies"],test_result)
 
 testUserNum()

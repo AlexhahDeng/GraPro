@@ -8,7 +8,6 @@ import random
 import pandas as pd
 import numpy as np
 import pandas as pd
-from func import *
 import datetime
 np.set_printoptions(suppress=True)
 
@@ -16,9 +15,6 @@ np.set_printoptions(suppress=True)
 dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
 # 结果路径
 resultPath = os.path.abspath(os.path.dirname(os.getcwd())) + "\\result\\" 
-
-# 边缘用户数量
-# edgeUserNum = 100
 
 # KEYPOINT 电影数
 MAXNUM = 1000000
@@ -28,6 +24,51 @@ MAXNUM = 1000000
 
 # ahp一致性检验参数，阶为3的情况，如果后期要加还要根据情况变化
 RI = 0.58
+def ahp():
+    '''
+    func:利用ahp层次分析法获取权重
+    return：numpy array
+    '''
+
+    # 创建成对矩阵
+    arr = np.array([[1,5,3],
+                    [1/5,1,1/3],
+                    [1/3,3,1]])
+
+    col_sum = arr.sum(axis = 0) # 列求和
+
+    # 矩阵归一化    
+    [rows, cols] = arr.shape
+    brr = np.zeros((rows, cols))
+
+    for i in range(rows):
+        for j in range(cols):
+            brr[i,j] = arr[i,j] / col_sum[j]
+
+    row_sum = brr.sum(axis = 0) # 行求和
+    w = [0 for i in range(3)]
+
+    # 归一化权重
+    for i in range(len(row_sum)):
+        w[i] = row_sum[i] / row_sum.sum()
+
+    # 检验一致性(特征值，特征向量)
+    evalue,fevector=np.linalg.eig(arr)
+
+    evalue_max = np.max(evalue) # 最大特征值
+
+    CI = (evalue_max - rows) / (rows - 1)
+
+    CR = CI/RI
+
+    # if(CR < 0.1):
+    #     print("CR:" + str(CR) +"    通过一致性检验\n")
+    # else:
+    #     print("未通过一致性检验，请重新设计对比矩阵\n")
+
+    # print("权重因子为"+str(w))
+    return w # 权重array
+
 
 def readCSV(filePath):
     '''
@@ -56,14 +97,16 @@ def readCSV(filePath):
         file.close();# 操作完成一定要关闭
 
 
-def toCSV(filename, name, list1):
+def toCSV(filename, name, list1, hasindex = False):
     '''
     para:filename,name=[], list1=[]
     func:把listMovie数据写入 csv（是list类型的哦，当心别传入array
     '''
     filename = resultPath + filename + ".csv"
     test = pd.DataFrame(columns = name, data = list1)
-    test.to_csv(filename,encoding = 'gbk')
+    test.to_csv(filename,index = hasindex, encoding = 'gbk')
+
+    return 
 
 
 def getClicksandAvgScores(listMovie):
@@ -87,7 +130,6 @@ def getClicksandAvgScores(listMovie):
     return listMovie
 
 
-
 def getCommentsNum(listMovie):
     '''
     func: 获取评论数，结果直接计入listMovie数组
@@ -105,23 +147,31 @@ def getCommentsNum(listMovie):
     return listMovie
 
 
-def edgeUser(edgeUserNum):
+def generateEdgeUser(edgeUserNum):
+    '''
+    func: given edge user number, and generate user randomly
+    '''
+
+    # 获取随机生成的边缘用户集
+    allUser = np.asarray(readCSV(dataPath + "ratings.csv"))
+    userId = allUser[:,0]
+    edgeUserId = random.sample(list(userId), edgeUserNum)
+    
+
+
+    return edgeUserId
+
+
+def edgeUser(edgeUserId):
     '''
     func:
-        1、随机生成用户集合（集合用户数量可以控制
-        2、针对用户观影记录，获取电影list，index是id，然后有评论数，观看量和平均评分
-        3、根据时间戳，分成前15年训练movieList，后7年为测试testMovieList
+        1、针对用户观影记录，获取电影list，index是id，然后有评论数，观看量和平均评分
+        2、根据时间戳，分成前15年训练movieList，后7年为测试testMovieList
     points：
         1、可以改动边缘用户数量来看影响
         2、可以改动时间戳，来改变训练和测试的数据量
     return: 边缘用户集array，测试电影array
     '''
-    # 获取随机生成的边缘用户集,100个用户！
-    allUser = np.asarray(readCSV(dataPath + "ratings.csv"))
-    userId = allUser[:,0]
-    edgeUserId = random.sample(list(userId), edgeUserNum)
-    
-    # print("边缘用户id\n" + str(edgeUserId))
 
     # 读取打分和标签文件
     rating = np.asarray(readCSV(dataPath + "ratings.csv"))
@@ -175,47 +225,20 @@ def edgeUser(edgeUserNum):
     return np.asarray(edgeUserMovieList), np.asarray(testMovieList)
 
 
-def ahp():
-    '''
-    func:利用ahp层次分析法获取权重
-    return：numpy array
-    '''
+# 后期备用
+# def main():
+#     # 获取权重
+#     ahpWei = ahp()
 
-    # 创建成对矩阵
-    arr = np.array([[1,5,3],
-                    [1/5,1,1/3],
-                    [1/3,3,1]])
+#     # 填满电影数据矩阵
+#     getClicksandAvgScores(listMovie)
+#     getCommentsNum(listMovie)
 
-    col_sum = arr.sum(axis = 0) # 列求和
+#     # 将最热门的电影整合，模拟某用户观影记录
+#     targetUser = getHotMovies(ahpWei, listMovie)
 
-    # 矩阵归一化    
-    [rows, cols] = arr.shape
-    brr = np.zeros((rows, cols))
+#     # 获取每个用户的观影记录
+#     userMovieList = getUserMovies()
 
-    for i in range(rows):
-        for j in range(cols):
-            brr[i,j] = arr[i,j] / col_sum[j]
-
-    row_sum = brr.sum(axis = 0) # 行求和
-    w = [0 for i in range(3)]
-
-    # 归一化权重
-    for i in range(len(row_sum)):
-        w[i] = row_sum[i] / row_sum.sum()
-
-    # 检验一致性(特征值，特征向量)
-    evalue,fevector=np.linalg.eig(arr)
-
-    evalue_max = np.max(evalue) # 最大特征值
-
-    CI = (evalue_max - rows) / (rows - 1)
-
-    CR = CI/RI
-
-    if(CR < 0.1):
-        print("CR:" + str(CR) +"    通过一致性检验\n")
-    else:
-        print("未通过一致性检验，请重新设计对比矩阵\n")
-
-    print("权重因子为"+str(w))
-    return w # 权重array
+#     # 获取推荐电影集
+#     getRecommMovies(targetUser, userMovieList)
