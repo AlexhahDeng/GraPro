@@ -357,7 +357,7 @@ def testUserNum():
     # 所有用户观影记录
     userMovieList = getUserMovies()
 
-    for i in range(5,20):
+    for i in range(5,100):
         curr = []
 
         # 获取模拟数
