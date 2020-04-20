@@ -11,18 +11,13 @@ import pandas as pd
 np.set_printoptions(suppress=True)
 from func import *
 
-dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
+dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "/data/" 
 
 # 边缘节点容量
 EDGECAPACITY = 2000
 
-# 视频最大size（主要用于随机生成大小
-VIDEOMAXSIZE = 200
-
 # 获取ahp权重
 WEIGHT = ahp()
-
-GENERATION_TIME = 200 # 最大迭代次数
 MAX_SCORE = 5 # FIXME 咱也不知道，只能先随便整一个
 
 def overallRating(video):
@@ -38,7 +33,7 @@ def overallRating(video):
 
     return score
 
-def generateData(edgecapacity):
+def generateData(edgecapacity, videomaxsize):
     '''
     func：在万般无奈下只能自己编造数据了
     return：array col1：movieId col2:size col3:scores
@@ -68,13 +63,15 @@ def generateData(edgecapacity):
             videoInfo.append(i) # id
 
             # 随机生成视频大小
-            videoSize = random.randint(5,VIDEOMAXSIZE)
+            videoSize = random.randint(5, videomaxsize)
 
             while(edgeSize - videoSize < 0): # 随机化大小不合适
-                videoSize = random.randint(5,VIDEOMAXSIZE)
+                videoSize = random.randint(5, videomaxsize)
 
             videoInfo.append(videoSize) # 大小
             videoInfo.append(overallRating(listMovie[i])) # 流行度分数
+
+            videoInfo.append()
 
             edgeMovies.append(videoInfo)
             edgeSize -= videoSize
@@ -83,10 +80,11 @@ def generateData(edgecapacity):
                 break
 
     print("随机数据生成！\n")
+    arr = np.asarray(edgeMovies)
     
-    return np.asarray(edgeMovies)
+    return arr
 
-def generatePopulation(group_size, gene_len):
+def generatePopulation(group_size, gene_len, edgeMovies, leftRoom):
     '''
     func：
         1、初始化种群，大小可以改变（不保证每个个体都不一样，不过一毛一样的概率较低）
@@ -96,16 +94,26 @@ def generatePopulation(group_size, gene_len):
         list，种群所有个体
     '''
     group = []
-    for i in range(group_size):
+
+    i = 0
+    while(i < group_size):
         individual = []
+
         for j in range(gene_len):
             individual.append(random.randint(0,1)) # 随机化染色体序列咯
-        
-        # 为了变成好用的东西
-        tmp = []
-        tmp.append(individual)
-        tmp.append([])
-        group.append(tmp)
+            
+        scores = fitness(edgeMovies, leftRoom, individual)
+
+        if( scores == -1):
+            continue
+
+        else:
+            # 为了变成好用的东西
+            tmp = []
+            tmp.append(individual)
+            tmp.append(scores)
+            group.append(tmp)
+            i += 1
 
     print("种群初始化……\n")
 
@@ -158,7 +166,6 @@ def cross(group, leftRoom, edgeMovies, crosstime, populationsize):
     # 实在是没办法保证概率之和为1，只能随机加减了
     pos[random.randint(0, len(pos)-1)] -= (np.sum(pos) - 1)
 
-    # print(str(group) + "???")
     # 开始交配~（怪怪的、次数自定
     for i in range(crosstime):
 
@@ -254,65 +261,33 @@ def GA(edgeMovies, leftRoom, population_size, cross_time, mutate_time, generatio
         1、在剩余空间的限制下，从文件中选择丢弃哪些文件
         2、保证剩余的文件能达到最优的命中率
     return：
-        最佳video组合
+        最佳替换策略的流行度
     '''
 
     # group结构[[[染色体序列]，[fitness]],……]
-    Group = generatePopulation(population_size ,len(edgeMovies))
+    Group = generatePopulation(population_size ,len(edgeMovies), edgeMovies, leftRoom)
 
     print("种群大小     " + str(population_size) + "\n" + "染色体长度   " + str(len(edgeMovies)) + "\n")
     print("剩余空间大小     " + str(leftRoom) + "\n")
 
-    # 计算适应度
-    for i in range(len(Group)):
-        individual = Group[i][0]
-        scores = fitness(edgeMovies, leftRoom, individual)
-
-        # 分数不合要求直接毙掉
-        if ( scores == -1):
-            Group.pop(i)
-        else:
-            Group[i][1] = scores
 
     test_group = list(Group)
-    for i in range(generation_time):
 
-        # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
-        # print(Group)
+    for i in range(generation_time):
         # 交叉
         cross_group = cross(test_group, leftRoom, edgeMovies, cross_time, population_size)
 
-        # print("after cross highest" + "     " + str(np.max(np.asarray(cross_group)[:,1])))
-        # print(new_group)
         # 变异
         mutate_group = mutate(cross_group, leftRoom, edgeMovies, mutate_time, population_size)
-        # print("after mutate highest" + "     " + str(np.max(np.asarray(mutate_group)[:,1])))
 
         test_group = mutate_group
 
-    print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
-    print("final highest" + "        " + str(np.max(np.asarray(test_group)[:,1])))
+    initial_highest = np.max(np.asarray(Group)[:,1])
+    ga_highest = np.max(np.asarray(test_group)[:,1])
+    print("initial highest" + "     " + str(initial_highest))
+    print("final highest" + "        " + str(ga_highest))
 
-        
-    # test_group = list(Group)
-    # for i in range(2000):
-
-    #     # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
-    #     # print(Group)
-    #     # 交叉
-    #     cross_group = cross(test_group, leftRoom, edgeMovies)
-
-    #     # print("after cross highest" + "     " + str(np.max(np.asarray(cross_group)[:,1])))
-    #     # print(new_group)
-    #     # 变异
-    #     mutate_group = mutate(cross_group, leftRoom, edgeMovies)
-    #     # print("after mutate highest" + "     " + str(np.max(np.asarray(mutate_group)[:,1])))
-
-    #     test_group = mutate_group
-
-    # print("initial highest" + "     " + str(np.max(np.asarray(Group)[:,1])))
-    # print("final highest" + "        " + str(np.max(np.asarray(test_group)[:,1])))
-
+    return ga_highest
 
 
 
@@ -336,32 +311,86 @@ def dropMinFitness(edgeMovies, leftRoom):
             break
     
 
-    print("新方案剩余空间：" + str(np.sum(edgeMovies[:,1])))
-    print("新方案替换后流行度：" + str(np.sum(edgeMovies[:,2])))
+    # print("新方案剩余空间：" + str(np.sum(edgeMovies[:,1])))
+    fitness = np.sum(edgeMovies[:,2])
+    print("新方案替换后流行度：" + str(fitness))
     
-    return np.sum(edgeMovies[:,2])
+    return fitness
 
+
+def edgeUserNum(edgeCapacity, videomaxsize, iterTime, singleRequestSize):
+    '''
+    func：测试访问人数对替换策略效果的影响
+    我觉得不用随机生成啥子访问了，直接划分
+    '''
+
+    result = []
+    for i in range(iterTime):
+        print("round " + str(i))
+
+        videoRequest = (i + 1) * singleRequestSize # 模拟请求
+        leftRoom = edgeCapacity - videoRequest
+
+        edgeMovies = generateData(edgeCapacity, videomaxsize)
+
+        populationsize = 100
+        crosstime = 100
+        generationtime = 2000
+        mutatetime = 100
+
+        # 遗传算法
+        ga_score = GA(edgeMovies, leftRoom, populationsize, crosstime, mutatetime, generationtime)
+        dropmin_score = dropMinFitness(edgeMovies, leftRoom)
+
+        tmp =[]
+        tmp.append(videoRequest)
+        tmp.append(ga_score)
+        tmp.append(dropmin_score)
+
+        result.append(tmp)
+        
+    return result
 
 
 def main():
 
-    edgeMovies = generateData(20000)
+    edgecapacity = 20000
+    videomaxsize = 500
+    edgeMovies = generateData(edgecapacity, videomaxsize)
 
     # 随机生成视频请求，目前还是限制一下大小，从简
-    videoRequest = random.randint(5, VIDEOMAXSIZE)
+    videoRequest = random.randint(5, videomaxsize) * 20
     leftRoom = np.sum(edgeMovies[:,1]) - videoRequest
 
-    populationsize = 50
+    populationsize = 100
     crosstime = 100
-    generationtime = 10000
+    generationtime = 2000
     mutatetime = 100
 
     # 遗传算法
     GA(edgeMovies, leftRoom, populationsize, crosstime, mutatetime, generationtime)
+    
+    # 直接丢掉适应度最小的，直到内存满足要求
     dropMinFitness(edgeMovies, leftRoom)
 
 
+def test():
+    edgecapacity = 20000
+    videomaxsize = 500
+    itertime = 15
+    singleRequestSize = 1000
+    
+    result = edgeUserNum(edgecapacity, videomaxsize, itertime, singleRequestSize)
 
+    toCSV("userNum", ["num", "ga", "traditional"], result)
 
+def leastRecentUse(edgeMovies, leftRoom):
+    '''
+    func：最近最少使用
+    '''
 
-main()
+    #TODO 多少是有点问题的。电影数据中没法得到最近最少这个指标啊
+    # 最多只能偷换概念，直接用浏览量最少来代替……
+    # 其实还有些参数可以纳入考虑，不知道可以不可以实验理论一套
+    # 做实验又一套……
+

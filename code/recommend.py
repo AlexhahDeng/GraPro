@@ -13,7 +13,7 @@ import datetime
 np.set_printoptions(suppress=True)
 
 # 数据路径
-dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "\data\\" 
+dataPath=os.path.abspath(os.path.dirname(os.getcwd())) + "/data/" 
 
 # 电影数(只有在换数据集的时候才需要改)
 MAXNUM = 1000000
@@ -123,7 +123,7 @@ def getHotMovies(ahp, mvlist, num):
 
     return np.asarray(hotMovieList) # 是个array，col1是movie id,col2是score
 
-def getRecommMovies(targetUser, userMovieList, movienum): # FIXME 这里还要再研究一下正确性
+def getRecommMovies(targetUser, userMovieList, movienum, MAXK): # FIXME 这里还要再研究一下正确性
     '''
     func：
         1、获取用户相似度矩阵
@@ -134,8 +134,6 @@ def getRecommMovies(targetUser, userMovieList, movienum): # FIXME 这里还要�
         2、可以改变推荐的数量
     return：array, movie id
     '''
-
-    MAXK = 50 # KEYPOINT 选择前k个用户，可以做修改
 
     userSimMartrix = [0.0 for row in range(len(userMovieList) + 1)] # 初始化用户相似度矩阵
     
@@ -248,7 +246,7 @@ def hitRate(movieList, allMovies):
     return len(np.intersect1d(movieList, allMovies)) / len(allMovies)
 
 
-def getuserSeperate(edgeUserId, userMovieList):
+def getuserSeperate(edgeUserId, userMovieList, maxk):
     '''
     func：尝试新方法来获取推荐内容，每个用户单独推荐，获取推荐矩阵
     return：movie id(array)
@@ -263,7 +261,7 @@ def getuserSeperate(edgeUserId, userMovieList):
         target_user_id = int(edgeUserId[i])
         target_user_movie = userMovieList[target_user_id][1]
 
-        recommMovieList = getRecommMovies(np.asarray(target_user_movie), userMovieList, EDGEMAXMOVIES)
+        recommMovieList = getRecommMovies(np.asarray(target_user_movie), userMovieList, EDGEMAXMOVIES, maxk)
 
         for j in range(len(recommMovieList)):
             movieId = int(recommMovieList[j])
@@ -284,7 +282,7 @@ def getuserSeperate(edgeUserId, userMovieList):
     # toCSV("hotmovies", ["clicknum"], movieList, True)
     return movieIndex
     
-def getRecoMovies(edgeUserMovieList, userMovieList):
+def getRecoMovies(edgeUserMovieList, userMovieList, maxk):
     '''
     func：
         1、获取把边缘节点所有用户看作一个整体来进行推荐的结果
@@ -302,7 +300,7 @@ def getRecoMovies(edgeUserMovieList, userMovieList):
     mostPopMovies = targetUser[:,0]
 
     # 获取推荐电影集
-    recommMovieList = getRecommMovies(targetUser, userMovieList, EDGEMAXMOVIES)
+    recommMovieList = getRecommMovies(targetUser, userMovieList, EDGEMAXMOVIES, maxk)
 
     return recommMovieList, mostPopMovies
 
@@ -374,10 +372,10 @@ def testUserNum():
         edgeUserMovieList, testMovies = edgeUser(edgeUserId)    
 
         # 获取针对独立用户的推荐结果
-        userSeperate = getuserSeperate(edgeUserId, userMovieList)
+        userSeperate = getuserSeperate(edgeUserId, userMovieList, 50)
 
         # 将所有边缘用户看成模拟为一个用户进行推荐
-        userAsOne, hotMovies = getRecoMovies(edgeUserMovieList, userMovieList)
+        userAsOne, hotMovies = getRecoMovies(edgeUserMovieList, userMovieList, 50)
 
         # 获取全局最流行缓存
         wwpopmovies = getWWPopMovies()
@@ -390,6 +388,46 @@ def testUserNum():
 
         test_result.append(curr)
     
+    
     toCSV("usernum2",["num","seperate","asOne","edgehotMovies", "worldwideHotMovies"],test_result)
 
-testUserNum()
+
+def testSimUserNum():
+    '''
+    func：选择k个用户对命中率的影响
+    '''
+
+    # 所有用户观影记录
+    userMovieList = getUserMovies()
+
+    userNum = 50
+    edgeUserId = generateEdgeUser(userNum)
+    edgeUserMovieList, testMovies = edgeUser(edgeUserId)
+
+    # 获取边缘节点用户观影记录
+    edgeUserMovieList, testMovies = edgeUser(edgeUserId)    
+
+    result = []
+    for i in range(5,25):
+        curr = []
+        maxk = (i + 1) * 5 # 5~125
+        print(maxk)
+
+        # 获取针对独立用户的推荐结果
+        userSeperate = getuserSeperate(edgeUserId, userMovieList, maxk)
+        print("seperate user done")
+
+        # 将所有边缘用户看成模拟为一个用户进行推荐
+        userAsOne, hotMovies = getRecoMovies(edgeUserMovieList, userMovieList, maxk)
+        print("as one done!")
+        curr.append(maxk)        
+        curr.append(hitRate(userSeperate, testMovies))
+        curr.append(hitRate(userAsOne, testMovies))
+        curr.append(hitRate(hotMovies, testMovies))
+
+        result.append(curr)
+
+    toCSV("maxk", ["k-user","seperate","asOne","edgeHotMovies"], result)
+
+
+testSimUserNum()

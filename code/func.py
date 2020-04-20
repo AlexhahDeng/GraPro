@@ -74,9 +74,8 @@ def readCSV(filePath):
     '''
     func:读取csv的内容
     '''
-
+    file=open(filePath,'r',encoding="gbk")# 读取以utf-8
     try:
-        file=open(filePath,'r',encoding="gbk")# 读取以utf-8
         context = file.read() # 读取成str
         list_result=context.split("\n")#  以回车符\n分割成单独的行
 
