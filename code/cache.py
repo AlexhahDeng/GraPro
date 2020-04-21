@@ -36,7 +36,7 @@ def overallRating(video):
 def generateData(edgecapacity, videomaxsize):
     '''
     func：在万般无奈下只能自己编造数据了
-    return：array col1：movieId col2:size col3:scores
+    return：array col1：movieId col2:size col3:scores col4: click nums
     '''
     # col1：电影点击数 col2：电影平均评分 col3：电影评论数 
     listMovie = [[0.0 for col in range(3)] for row in range(MAXNUM)] 
@@ -50,10 +50,16 @@ def generateData(edgecapacity, videomaxsize):
     edgeSize = edgecapacity
     colMax = np.max(listMovie, axis = 0) # 获取每行数据最大值
 
-    for i in range(len(listMovie[0,:])): # 归一化处理数据
+    # 保留原始电影信息副本
+    rawListMovie = list(listMovie)
+
+    # 归一化处理数据
+    for i in range(len(listMovie[0,:])): 
         listMovie[:,i] = listMovie[:,i] / colMax[i]
 
+    # 随机生成数据，电影id基本不重要
     for i in range(len(listMovie)):
+
         if(listMovie[i,0] == 0):
             continue
 
@@ -71,7 +77,7 @@ def generateData(edgecapacity, videomaxsize):
             videoInfo.append(videoSize) # 大小
             videoInfo.append(overallRating(listMovie[i])) # 流行度分数
 
-            videoInfo.append()
+            videoInfo.append(rawListMovie[i][0]) # 浏览量
 
             edgeMovies.append(videoInfo)
             edgeSize -= videoSize
@@ -340,26 +346,70 @@ def edgeUserNum(edgeCapacity, videomaxsize, iterTime, singleRequestSize):
 
         # 遗传算法
         ga_score = GA(edgeMovies, leftRoom, populationsize, crosstime, mutatetime, generationtime)
+        
+        # 直接pass适应度最小的
         dropmin_score = dropMinFitness(edgeMovies, leftRoom)
+
+        # 最近最少使用
+        leastRecentUse_score = leastRecentUse(edgeMovies, leftRoom)
 
         tmp =[]
         tmp.append(videoRequest)
         tmp.append(ga_score)
         tmp.append(dropmin_score)
+        tmp.append(leastRecentUse_score)
 
         result.append(tmp)
         
     return result
 
 
-def main():
+def leastRecentUse(edgeMovies, leftRoom):
+    '''
+    func：最近最少使用
+    '''
 
+    #TODO 多少是有点问题的。电影数据中没法得到最近最少这个指标啊
+    # 最多只能偷换概念，直接用浏览量最少来代替……
+    # 其实还有些参数可以纳入考虑，不知道可以不可以实验理论一套
+    # 做实验又一套……
+
+    edgeMovies = np.asarray(edgeMovies)
+    movieIndex = edgeMovies[:,-1].argsort()
+
+    initialSize = np.sum(edgeMovies[:,1])
+
+    for i in range(len(movieIndex)):
+        currIndex = movieIndex[i]
+        initialSize -= edgeMovies[currIndex][1]
+        edgeMovies[currIndex][2] = 0
+
+        if(initialSize < leftRoom):
+            break
+    fitness = np.sum(edgeMovies[:,2])
+    print("最近最少替换的流行度：" + str(fitness))
+
+    return fitness
+
+
+def testUserNum():
+    edgecapacity = 20000
+    videomaxsize = 500
+    itertime = 20
+    singleRequestSize = 500
+    
+    result = edgeUserNum(edgecapacity, videomaxsize, itertime, singleRequestSize)
+
+    toCSV("userNum", ["num", "ga", "traditional","leastRecentUse"], result)
+
+def main():
+    
     edgecapacity = 20000
     videomaxsize = 500
     edgeMovies = generateData(edgecapacity, videomaxsize)
 
     # 随机生成视频请求，目前还是限制一下大小，从简
-    videoRequest = random.randint(5, videomaxsize) * 20
+    videoRequest = 15000 # random.randint(5, videomaxsize) * 20
     leftRoom = np.sum(edgeMovies[:,1]) - videoRequest
 
     populationsize = 100
@@ -373,24 +423,11 @@ def main():
     # 直接丢掉适应度最小的，直到内存满足要求
     dropMinFitness(edgeMovies, leftRoom)
 
+    # 最近最少替换
+    leastRecentUse(edgeMovies, leftRoom)
 
-def test():
-    edgecapacity = 20000
-    videomaxsize = 500
-    itertime = 15
-    singleRequestSize = 1000
-    
-    result = edgeUserNum(edgecapacity, videomaxsize, itertime, singleRequestSize)
+testUserNum()
 
-    toCSV("userNum", ["num", "ga", "traditional"], result)
-
-def leastRecentUse(edgeMovies, leftRoom):
-    '''
-    func：最近最少使用
-    '''
-
-    #TODO 多少是有点问题的。电影数据中没法得到最近最少这个指标啊
-    # 最多只能偷换概念，直接用浏览量最少来代替……
-    # 其实还有些参数可以纳入考虑，不知道可以不可以实验理论一套
-    # 做实验又一套……
-
+#TODO 思考一下能不能在交叉变异的地方，做一点小改进
+# 比如说，变异交叉之前先划分区域做局部变异，然后选择最好的变异位置
+# 这样子可以略微减轻工作量把大概
